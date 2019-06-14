@@ -6,11 +6,13 @@ import (
 	"fmt"
 	"encoding/csv"
 	"strings"
+	"time"
 )
 
 func main() {
 	// csvFilename is a pointer to a string
 	csvFilename := flag.String("csv", "problems.csv", "a csv file in the format of 'question,answer'")
+	timeLimit := flag.Int("limit", 30, "the time limit for the quiz in seconds")
 	flag.Parse()
 	
 	// we use an asterick here because we want to use the VALUE
@@ -31,17 +33,35 @@ func main() {
 	}
 
 	problems := parseLines(lines)
-	fmt.Println(problems)
+
+	timer := time.NewTimer(time.Duration(*timeLimit) * time.Second)
 
 	correct := 0
 	for i, p := range problems {
-		fmt.Printf("Problem #%d: %s = \n", i+1, p.q)
-		var answer string
-		// Using a pointer value here so whenever Scanf sets the value
-		// we can then access it with our var
-		fmt.Scanf("%s\n", &answer)
-		if answer == p.a {
-			correct++
+		fmt.Printf("Problem #%d: %s = ", i+1, p.q)
+
+		// Go channel
+		answerCh := make(chan string)
+
+		// Goroutine
+		go func() {
+			var answer string
+			// Using a pointer value here so whenever Scanf sets the value
+			// we can then access it with our var
+			fmt.Scanf("%s\n", &answer)
+
+			// Send the answer into the answer channel (happens when we get a response)
+			answerCh <- answer
+		}()
+
+		select {
+		case <-timer.C:
+			fmt.Printf("\nYou scored %d out of %d.\n", correct, len(problems))
+			return
+		case answer := <- answerCh:
+			if answer == p.a {
+				correct++
+			}
 		}
 	}
 
